@@ -1,6 +1,6 @@
 import re
 import pandas
-import matplotlib
+import matplotlib as plt
 
 K_TABLA = 10      # S1 a S10
 K_CONV = 300      # k para estimar limite empirico
@@ -92,3 +92,31 @@ def imprimir_tablas(resultados):
             s3 = f"{resultados[caso]['p3']['S_tabla'][k-1]:.6f}"
             print(f"{k:<5} {s1:<18} {s2:<18} {s3:<18}")
     print(f"\nUmbral de costo maximo C_max = {C_MAX}")
+
+def generar_graficos(resultados, p1, p2, p3):
+    """Genera y guarda 3 graficos (uno por caso A, B y C) como archivos .png."""
+    probabilidades = [p1, p2, p3]
+    colores = ["blue", "green", "red"]
+    casos = ["A", "B", "C"]
+
+    for caso in casos:
+        plt.figure(figsize=(8, 5))
+        for j, p in enumerate(probabilidades, start=1):
+            clave = f"p{j}"
+            r = resultados[caso][clave]
+            plt.plot(r["ks_conv"], r["S_conv"],
+                     label=f"p{j} = {p:.4f}",
+                     color=colores[j - 1],
+                     linewidth=2)
+        plt.axhline(y=C_MAX, color="black", linestyle="--", linewidth=1,
+                    label=f"C_max = {C_MAX}")
+        plt.title(f"Caso {caso}: S_k vs k")
+        plt.xlabel("k (numero de terminos acumulados)")
+        plt.ylabel("S_k (costo esperado acumulado)")
+        plt.grid(True, alpha=0.3)
+        plt.legend()
+        plt.tight_layout()
+        nombre_archivo = f"grafico_caso_{caso}.png"
+        plt.savefig(nombre_archivo, dpi=150)
+        plt.close()
+        print(f"Grafico guardado: {nombre_archivo}")
