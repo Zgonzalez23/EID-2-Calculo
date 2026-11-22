@@ -1,10 +1,11 @@
 import re
 import pandas
-import matplotlib as plt
+import matplotlib.pyplot as plt
 
 K_TABLA = 10      # S1 a S10
 K_CONV = 300      # k para estimar limite empirico
 C_MAX = 10        # umbral de costo maximo
+N_ANALISIS = 5000
 
 def extraer_digitos_rut(rut_str):
     """Extrae los primeros 8 digitos numericos de un RUT."""
@@ -120,3 +121,89 @@ def generar_graficos(resultados, p1, p2, p3):
         plt.savefig(nombre_archivo, dpi=150)
         plt.close()
         print(f"Grafico guardado: {nombre_archivo}")
+
+
+
+
+
+def analizar_viabilidad(resultados):
+    """Calcula convergencia y viabilidad de las 9 combinaciones y elige una."""
+    filas_conv = []
+    filas_viab = []
+    viables = []
+
+    for caso in ["A", "B", "C"]:
+        for clave in ["p1", "p2", "p3"]:
+            p = resultados[caso][clave]["p"]
+            s10 = resultados[caso][clave]["S_tabla"][-1]
+
+
+            ks, S = calcular_serie(p, caso, N_ANALISIS)
+            lim, k_est = limite_empirico(S, ks)
+
+            converge = k_est < N_ANALISIS
+            cumple = converge and lim <= C_MAX
+
+            filas_conv.append({
+                "Caso": caso,
+                "Prob": clave,
+                "p": round(p, 4),
+                "S10": round(s10, 4),
+                "Converge": "Si" if converge else "No",
+                "Limite empirico": round(lim, 4),
+                "k de estabilizacion": k_est,
+            })
+            filas_viab.append({
+                "Caso": caso,
+                "Prob": clave,
+                "Limite": round(lim, 4),
+                "C_max": C_MAX,
+                "Cumple": "Si" if cumple else "No",
+            })
+            if cumple:
+                viables.append((lim, k_est, caso, clave, p))
+
+    df_conv = pandas.DataFrame(filas_conv)
+    df_viab = pandas.DataFrame(filas_viab)
+
+    if len(viables) == 0:
+        return df_conv, df_viab, None
+
+    # elijo el de menor costo esperado; si empatan, el que se estabiliza antes
+    viables.sort()
+    lim, k_est, caso, clave, p = viables[0]
+    recomendacion = {
+        "caso": caso,
+        "prob": clave,
+        "p": round(p, 4),
+        "limite": round(lim, 4),
+        "k": k_est,
+        "n_viables": len(viables),
+    }
+    return df_conv, df_viab, recomendacion
+
+
+def imprimir_analisis_consola(df_conv, df_viab, recomendacion):
+    """Imprime tabla de convergencia, tabla de viabilidad y recomendacion."""
+    print(f"\n{'='*50}")
+    print("TABLA DE CONVERGENCIA")
+    print(f"{'='*50}")
+    print(df_conv.to_string(index=False))
+
+    print(f"\n{'='*50}")
+    print(f"TABLA DE VIABILIDAD (C_max = {C_MAX})")
+    print(f"{'='*50}")
+    print(df_viab.to_string(index=False))
+
+    print(f"\n{'='*50}")
+    print("RECOMENDACION")
+    print(f"{'='*50}")
+    if recomendacion is None:
+        print("Ninguna combinacion cumple el umbral C_max.")
+        return
+
+    r = recomendacion
+    print(f"Combinacion recomendada: Caso {r['caso']} con {r['prob']} (p = {r['p']})")
+    print(f"Justificacion: la serie converge a {r['limite']}, que es menor o igual "
+          f"al umbral de {C_MAX}. Es la de menor costo entre las {r['n_viables']} "
+          f"combinaciones que cumplen, y su curva se estabiliza desde k = {r['k']}.")
